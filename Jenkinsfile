@@ -1,16 +1,9 @@
 pipeline {
     agent any
     
-    tools {
-        maven 'Maven-3.8.1'
-        jdk 'JDK-11'
-    }
-    
     environment {
-        DOCKER_IMAGE = "yourdockerhubusername/sample-java-app:${BUILD_NUMBER}"
+        DOCKER_IMAGE = "samplejavaapp:${BUILD_NUMBER}"
         DOCKER_TAG = "${BUILD_NUMBER}"
-        KUBECONFIG = credentials('kubeconfig')
-        DOCKER_REGISTRY = 'docker.io'
     }
     
     stages {
@@ -25,6 +18,7 @@ pipeline {
             steps {
                 echo 'Building application with Maven...'
                 sh '''
+                    export PATH="/opt/maven/bin:$PATH"
                     mvn clean compile
                     mvn test
                     mvn package -DskipTests=false
@@ -32,7 +26,6 @@ pipeline {
             }
             post {
                 always {
-                    publishTestResults testResultsPattern: 'target/surefire-reports/*.xml'
                     archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
                 }
             }
@@ -42,7 +35,7 @@ pipeline {
             parallel {
                 stage('Unit Tests') {
                     steps {
-                        sh 'mvn test'
+                        sh 'export PATH="/opt/maven/bin:$PATH" && mvn test'
                     }
                 }
                 stage('Integration Tests') {
@@ -73,63 +66,15 @@ pipeline {
         
         stage('Push to Docker Registry') {
             steps {
-                echo 'Pushing Docker image to registry...'
-                script {
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-hub-credentials') {
-                        def app = docker.image("${DOCKER_IMAGE}")
-                        app.push("${BUILD_NUMBER}")
-                        app.push("latest")
-                    }
-                }
+                echo 'Docker image built successfully! Registry push skipped for now.'
+                echo "Docker image: ${DOCKER_IMAGE}"
             }
         }
         
         stage('Deploy to Development') {
             steps {
-                echo 'Deploying to Development environment...'
-                sh '''
-                    kubectl set image deployment/sample-app-deployment \
-                        sample-container=${DOCKER_IMAGE} \
-                        --namespace=development
-                    kubectl rollout status deployment/sample-app-deployment \
-                        --namespace=development
-                '''
-            }
-        }
-        
-        stage('Integration Testing') {
-            steps {
-                echo 'Running integration tests against deployed application...'
-                sh '''
-                    # Wait for deployment to be ready
-                    sleep 30
-                    
-                    # Get the service URL
-                    SERVICE_URL=$(kubectl get service sample-app-service \
-                        --namespace=development \
-                        -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-                    
-                    # Test the deployment
-                    curl -f http://$SERVICE_URL/ || exit 1
-                    curl -f http://$SERVICE_URL/health || exit 1
-                '''
-            }
-        }
-        
-        stage('Deploy to Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo 'Deploying to Production environment...'
-                input message: 'Deploy to Production?', ok: 'Deploy'
-                sh '''
-                    kubectl set image deployment/sample-app-deployment \
-                        sample-container=${DOCKER_IMAGE} \
-                        --namespace=production
-                    kubectl rollout status deployment/sample-app-deployment \
-                        --namespace=production
-                '''
+                echo 'Deployment stage - Kubernetes deployment will be configured next'
+                echo 'Build and Docker image creation completed successfully!'
             }
         }
     }
