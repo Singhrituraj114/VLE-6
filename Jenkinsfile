@@ -2,26 +2,46 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_IMAGE = "samplejavaapp:${BUILD_NUMBER}"
-        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE = "samplejavaapp"
+        BUILD_TAG = "${BUILD_NUMBER}"
     }
     
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                echo 'Checking out code from GitHub...'
-                checkout scm
+                echo 'Code checked out from GitHub successfully'
             }
         }
         
-        stage('Build with Maven') {
+        stage('Build') {
             steps {
-                echo 'Building application with Maven...'
+                echo 'Building Java application...'
                 sh '''
                     export PATH="/opt/maven/bin:$PATH"
+                    export JAVA_HOME="/usr/lib/jvm/java-17-amazon-corretto.x86_64"
                     mvn clean compile
+                '''
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+                sh '''
+                    export PATH="/opt/maven/bin:$PATH"
+                    export JAVA_HOME="/usr/lib/jvm/java-17-amazon-corretto.x86_64"
                     mvn test
-                    mvn package -DskipTests=false
+                '''
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                echo 'Creating JAR package...'
+                sh '''
+                    export PATH="/opt/maven/bin:$PATH"
+                    export JAVA_HOME="/usr/lib/jvm/java-17-amazon-corretto.x86_64"
+                    mvn package -DskipTests=true
                 '''
             }
             post {
@@ -31,76 +51,36 @@ pipeline {
             }
         }
         
-        stage('Code Quality Analysis') {
-            parallel {
-                stage('Unit Tests') {
-                    steps {
-                        sh 'export PATH="/opt/maven/bin:$PATH" && mvn test'
-                    }
-                }
-                stage('Integration Tests') {
-                    steps {
-                        echo 'Running integration tests...'
-                        // Add integration test commands here
-                    }
-                }
-            }
-        }
-        
-        stage('Build Docker Image') {
+        stage('Docker Build') {
             steps {
                 echo 'Building Docker image...'
-                script {
-                    def app = docker.build("${DOCKER_IMAGE}")
-                }
+                sh '''
+                    docker build -t ${DOCKER_IMAGE}:${BUILD_TAG} .
+                    docker build -t ${DOCKER_IMAGE}:latest .
+                '''
             }
         }
         
-        stage('Security Scan') {
+        stage('Verify') {
             steps {
-                echo 'Performing security scan on Docker image...'
-                // Add security scanning tools here (e.g., Trivy, Clair)
-                sh 'echo "Security scan placeholder - integrate with your preferred tool"'
-            }
-        }
-        
-        stage('Push to Docker Registry') {
-            steps {
-                echo 'Docker image built successfully! Registry push skipped for now.'
-                echo "Docker image: ${DOCKER_IMAGE}"
-            }
-        }
-        
-        stage('Deploy to Development') {
-            steps {
-                echo 'Deployment stage - Kubernetes deployment will be configured next'
-                echo 'Build and Docker image creation completed successfully!'
+                echo 'Verifying build artifacts...'
+                sh '''
+                    ls -la target/
+                    docker images | grep ${DOCKER_IMAGE}
+                '''
             }
         }
     }
     
     post {
         always {
-            echo 'Cleaning up...'
-            sh 'docker system prune -f'
+            echo 'Pipeline execution completed'
         }
         success {
-            echo 'Pipeline completed successfully!'
-            emailext (
-                subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: """<p>SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
-                        <p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>""",
-                recipientProviders: [developers()]
-            )
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed!'
-            emailext (
-                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
-                        <p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>""",
-                recipientProviders: [developers()]
-            )
+            echo '❌ Pipeline failed!'
         }
     }
 }
