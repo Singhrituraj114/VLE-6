@@ -32,6 +32,10 @@ resource "aws_security_group" "jenkins" {
   }
 }
 
+
+
+
+
 # Get latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -50,6 +54,7 @@ resource "aws_instance" "jenkins" {
   key_name               = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.jenkins.id]
   subnet_id              = aws_subnet.public[0].id
+  iam_instance_profile   = aws_iam_instance_profile.jenkins.name
 
   root_block_device {
     volume_size = 20

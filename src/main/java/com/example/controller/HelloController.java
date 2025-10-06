@@ -8,7 +8,7 @@ public class HelloController {
 
     @GetMapping("/")
     public String hello() {
-        return "Hello World! CI/CD Pipeline is working successfully!";
+        return "🚀 VLE-6 CI/CD Pipeline - STEP 7 VERIFICATION! Build #" + System.getenv("BUILD_NUMBER");
     }
 
     @GetMapping("/health")
@@ -18,6 +18,6 @@ public class HelloController {
 
     @GetMapping("/version")
     public String version() {
-        return "Version: 1.0.0 - Build: " + System.getenv("BUILD_NUMBER");
+        return "🎯 VLE-6 Complete Pipeline - Version: 2.0.0 - Build: " + System.getenv("BUILD_NUMBER");
     }
 }
