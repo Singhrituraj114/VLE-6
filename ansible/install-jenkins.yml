@@ -1,0 +1,188 @@
+---
+- name: Install and Configure Jenkins Server
+  hosts: jenkins
+  become: yes
+  vars:
+    java_version: "11"
+    maven_version: "3.8.1"
+    docker_compose_version: "1.29.2"
+    kubectl_version: "1.27.0"
+    
+  tasks:
+    - name: Update system packages
+      yum:
+        name: "*"
+        state: latest
+        
+    - name: Install required packages
+      yum:
+        name:
+          - wget
+          - curl
+          - unzip
+          - git
+          - python3
+          - python3-pip
+        state: present
+        
+    - name: Install Java {{ java_version }}
+      yum:
+        name: java-{{ java_version }}-amazon-corretto
+        state: present
+        
+    - name: Add Jenkins repository
+      get_url:
+        url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+        
+    - name: Import Jenkins GPG key
+      rpm_key:
+        state: present
+        key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+        
+    - name: Install Jenkins
+      yum:
+        name: jenkins
+        state: present
+        
+    - name: Start and enable Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+        
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+        
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        
+    - name: Add jenkins user to docker group
+      user:
+        name: jenkins
+        groups: docker
+        append: yes
+        
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+        
+    - name: Download and install Maven
+      block:
+        - name: Download Maven
+          get_url:
+            url: "https://archive.apache.org/dist/maven/maven-3/{{ maven_version }}/binaries/apache-maven-{{ maven_version }}-bin.tar.gz"
+            dest: "/opt/apache-maven-{{ maven_version }}-bin.tar.gz"
+            
+        - name: Extract Maven
+          unarchive:
+            src: "/opt/apache-maven-{{ maven_version }}-bin.tar.gz"
+            dest: /opt
+            remote_src: yes
+            
+        - name: Create Maven symlink
+          file:
+            src: "/opt/apache-maven-{{ maven_version }}"
+            dest: /opt/maven
+            state: link
+            
+        - name: Set Maven environment variables
+          copy:
+            dest: /etc/profile.d/maven.sh
+            content: |
+              export MAVEN_HOME=/opt/maven
+              export PATH=$MAVEN_HOME/bin:$PATH
+            mode: '0755'
+            
+    - name: Install kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        
+    - name: Install AWS CLI v2
+      block:
+        - name: Download AWS CLI
+          get_url:
+            url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+            dest: "/tmp/awscliv2.zip"
+            
+        - name: Extract AWS CLI
+          unarchive:
+            src: "/tmp/awscliv2.zip"
+            dest: /tmp
+            remote_src: yes
+            
+        - name: Install AWS CLI
+          command: /tmp/aws/install
+          creates: /usr/local/bin/aws
+          
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+        
+    - name: Create Jenkins .aws directory
+      file:
+        path: /var/lib/jenkins/.aws
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+        
+    - name: Configure AWS CLI for Jenkins
+      copy:
+        dest: /var/lib/jenkins/.aws/config
+        content: |
+          [default]
+          region = us-west-2
+          output = json
+        owner: jenkins
+        group: jenkins
+        mode: '0600'
+        
+    - name: Install pip packages for Jenkins
+      pip:
+        name:
+          - boto3
+          - kubernetes
+          - PyYAML
+        executable: pip3
+        
+    - name: Restart Jenkins service
+      systemd:
+        name: jenkins
+        state: restarted
+        
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: 8080
+        host: "{{ inventory_hostname }}"
+        delay: 30
+        timeout: 300
+        
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_password
+      changed_when: false
+      
+    - name: Display Jenkins information
+      debug:
+        msg: |
+          Jenkins is now running!
+          URL: http://{{ inventory_hostname }}:8080
+          Initial Admin Password: {{ jenkins_password.stdout }}
+          
+  handlers:
+    - name: restart jenkins
+      systemd:
+        name: jenkins
+        state: restarted

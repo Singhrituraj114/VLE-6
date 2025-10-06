@@ -1,0 +1,57 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Docker
+*.log
+
+# Kubernetes
+*.kubeconfig
+
+# Ansible
+*.retry
+.vault_pass
+
+# Jenkins
+jenkins_home/
+
+# AWS
+.aws/credentials
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
