@@ -13,7 +13,7 @@ public class HelloController {
 
     @GetMapping("/health")
     public String health() {
-        return "Application is healthy and running!";
+        return "🟢 Application is healthy and running! CI/CD Pipeline STEP 7 Test";
     }
 
     @GetMapping("/version")
